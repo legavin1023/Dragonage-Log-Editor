@@ -1,12 +1,12 @@
-﻿<template>
+<template>
   <div class="editor">
     <header class="toolbar">
       <div class="brand">
         <span class="brand-icon">D</span>
-        <div>
+        <!-- <div>
           <h1>Dragonage Log Editor</h1>
           <p>이야기 사이에, GM의 한마디.</p>
-        </div>
+        </div> -->
       </div>
       <div class="file-actions">
         <input
@@ -17,11 +17,66 @@
           @change="openFile"
         />
         <button @click="$refs.fileInput.click()">HTML 불러오기</button>
+        <button :disabled="!ready" @click="openTistoryExport">
+          티스토리용 내보내기
+        </button>
         <button class="primary" :disabled="!ready" @click="download">
           HTML 저장<span v-if="dirty"> ·</span>
         </button>
       </div>
     </header>
+    <dialog
+      ref="exportDialog"
+      class="export-dialog"
+      aria-labelledby="export-title"
+      @close="exportHtml = ''"
+    >
+      <div class="export-header">
+        <h2 id="export-title">티스토리용 HTML</h2>
+        <button @click="$refs.exportDialog.close()">닫기</button>
+      </div>
+      <p>
+        티스토리 글쓰기에서 <strong>HTML 모드</strong>로 전환한 뒤 아래 코드를
+        붙여 넣으세요. 붙여 넣은 뒤 편집 모드를 바꾸지 말고 미리보기와 저장된
+        글을 확인하세요.
+      </p>
+      <p class="export-help">
+        본문만 출력하며, CSS는 이 로그 안에만 적용됩니다. 내장 폰트는 시스템
+        글꼴로 바꿉니다. 초상화·이미지는 원본의 내장 데이터 또는 주소를
+        유지하므로 티스토리 저장 후 표시되는지 확인해 주세요.
+      </p>
+      <p v-if="exportWarnings" class="notice">{{ exportWarnings }}</p>
+      <div class="export-actions">
+        <button class="primary" @click="copyTistory">HTML 복사</button
+        ><button @click="downloadTistory">티스토리용 파일 저장</button
+        ><span>{{ exportSize }} KB</span>
+      </div>
+      <p role="status" aria-live="polite">{{ exportNotice }}</p>
+      <label for="export-code">붙여 넣을 HTML 코드</label>
+      <textarea
+        id="export-code"
+        ref="exportCode"
+        class="export-code"
+        :value="exportHtml"
+        readonly
+        spellcheck="false"
+      />
+      <p class="export-help">
+        복사가 차단되면 코드 전체를 선택해 Ctrl / ⌘ + C로 복사할 수 있습니다. 이
+        출력은 게시용이며, 재편집용 백업은 기존 HTML 저장을 사용하세요.
+      </p>
+      <h3>본문 미리보기</h3>
+      <p class="export-help">
+        편집기 미리보기입니다. 티스토리의 실제 스킨·에디터에서 저장한 결과를
+        보장하지는 않습니다.
+      </p>
+      <iframe
+        class="export-preview"
+        title="티스토리용 본문 미리보기"
+        sandbox=""
+        :srcdoc="exportHtml"
+      />
+    </dialog>
     <div class="workspace">
       <main class="preview-panel">
         <div class="preview-heading">
@@ -39,13 +94,13 @@
           @load="connectPreview"
         />
         <div v-else class="empty-state">
-          <span class="empty-symbol">✦</span>
+          <!-- <span class="empty-symbol">✦</span>
           <p class="eyebrow">THE STORY CONTINUES</p>
           <h2>대화와 대화 사이,<br />이야기를 이어 주세요.</h2>
           <p>
             TRPG 채팅 로그의 대화를 선택하고<br />그 바로 뒤에 GM의 묘사와
             대사를 추가하세요.
-          </p>
+          </p> -->
           <button class="primary" @click="$refs.fileInput.click()">
             HTML 파일 선택
           </button>
@@ -129,6 +184,7 @@
 </template>
 <script>
 import { markRaw } from "vue";
+import { exportTistory } from "../lib/tistoryExport";
 import {
   GROUP,
   parseLog,
@@ -139,6 +195,10 @@ import {
 export default {
   name: "HomeView",
   data: () => ({
+    exportHtml: "",
+    exportWarnings: "",
+    exportNotice: "",
+    exportSize: 0,
     source: "",
     loaded: false,
     ready: false,
@@ -371,6 +431,49 @@ export default {
       this.dirty = true;
       this.notice = "마지막 편집을 되돌렸습니다.";
     },
+    openTistoryExport() {
+      const doc = this.$refs.preview?.contentDocument;
+      if (!doc || !this.ready) return;
+      try {
+        const result = exportTistory(doc);
+        this.exportHtml = result.html;
+        this.exportSize = Math.ceil(new Blob([result.html]).size / 1024);
+        this.exportWarnings = result.unreadableStyles
+          ? `외부 스타일 ${result.unreadableStyles}개를 읽지 못해 출력에서 제외했습니다.`
+          : "";
+        this.exportNotice = this.draft.trim()
+          ? "입력 중인 GM 내용은 아직 추가하지 않았으므로 포함되지 않습니다."
+          : "현재 편집한 로그로 게시용 HTML을 만들었습니다.";
+        this.$refs.exportDialog.showModal();
+      } catch (error) {
+        this.notice = `티스토리 내보내기에 실패했습니다. ${error.message}`;
+      }
+    },
+    async copyTistory() {
+      try {
+        await navigator.clipboard.writeText(this.exportHtml);
+        this.exportNotice =
+          "HTML을 복사했습니다. 티스토리 HTML 모드에 붙여 넣으세요.";
+      } catch {
+        this.$refs.exportCode.focus();
+        this.$refs.exportCode.select();
+        this.exportNotice =
+          "자동 복사가 차단되어 코드를 선택했습니다. Ctrl / ⌘ + C로 복사해 주세요.";
+      }
+    },
+    downloadTistory() {
+      const url = URL.createObjectURL(
+        new Blob([this.exportHtml], { type: "text/html;charset=utf-8" })
+      );
+      const link = document.createElement("a");
+      link.href = url;
+      link.download =
+        this.fileName.replace(/\.html?$/i, "") + "_티스토리용.html";
+      link.click();
+      setTimeout(() => URL.revokeObjectURL(url), 1000);
+      this.exportNotice =
+        "티스토리용 파일을 저장했습니다. 파일 안의 코드를 HTML 모드에 붙여 넣으세요.";
+    },
     download() {
       const doc = this.$refs.preview?.contentDocument;
       if (!doc || !this.ready) return;
@@ -391,6 +494,52 @@ export default {
 };
 </script>
 <style scoped>
+.export-dialog {
+  width: min(940px, 95vw);
+  max-height: 90dvh;
+  overflow: auto;
+  border: 1px solid #49515f;
+  border-radius: 10px;
+  background: #191e27;
+  color: #e9edf5;
+  padding: 24px;
+}
+.export-dialog::backdrop {
+  background: #000a;
+}
+.export-header,
+.export-actions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+.export-dialog p {
+  line-height: 1.8;
+}
+.export-help,
+.export-actions span {
+  color: #a6afbf;
+  font-size: 13px;
+}
+.export-code {
+  height: 170px;
+  font-family: monospace;
+  font-size: 13px;
+  white-space: pre;
+}
+.export-preview {
+  display: block;
+  width: 100%;
+  height: 420px;
+  border: 1px solid #49515f;
+  background: white;
+}
+.file-actions {
+  flex-wrap: wrap;
+}
+
 .editor {
   height: 100dvh;
   display: flex;
