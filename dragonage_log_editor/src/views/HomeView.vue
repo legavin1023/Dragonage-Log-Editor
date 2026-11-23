@@ -175,7 +175,7 @@ export default {
       return (
         !(this.dirty || this.draft.trim()) ||
         window.confirm(
-          "저장하지 않은 편집 내용이 있습니다. 다른 로그를 열까요?",
+          "저장하지 않은 편집 내용이 있습니다. 다른 로그를 열까요?"
         )
       );
     },
@@ -202,7 +202,7 @@ export default {
         if (version === this.loadVersion)
           this.loadLog(
             html,
-            "협죽도의 아가리 (네스토르의 고통) (2026-11-23).html",
+            "협죽도의 아가리 (네스토르의 고통) (2026-11-23).html"
           );
       } catch (error) {
         this.notice = error.message;
@@ -215,7 +215,7 @@ export default {
       this.authors = getAuthors(doc);
       this.author =
         this.authors.find((name) =>
-          /게임\s*마스터|^gm$|^마스터$/i.test(name),
+          /게임\s*마스터|^gm$|^마스터$/i.test(name)
         ) || "게임 마스터";
       this.clearSelection();
       this.history = [];
@@ -291,7 +291,7 @@ export default {
       const group = createGmMessage(
         this.selected.ownerDocument,
         this.author.trim(),
-        this.draft,
+        this.draft
       );
       group.tabIndex = 0;
       group.dataset.logEditorTab = "true";
@@ -317,10 +317,10 @@ export default {
       )
         return;
       this.author = this.selected.querySelector(
-        ".chatlog__author-name",
+        ".chatlog__author-name"
       ).textContent;
       this.draft = this.selected.querySelector(
-        ".preserve-whitespace",
+        ".preserve-whitespace"
       ).textContent;
       this.$refs.messageInput.focus();
     },
@@ -375,7 +375,7 @@ export default {
       const doc = this.$refs.preview?.contentDocument;
       if (!doc || !this.ready) return;
       const url = URL.createObjectURL(
-        new Blob([serializeLog(doc)], { type: "text/html;charset=utf-8" }),
+        new Blob([serializeLog(doc)], { type: "text/html;charset=utf-8" })
       );
       const link = document.createElement("a");
       link.href = url;
